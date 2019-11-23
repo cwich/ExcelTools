@@ -28,6 +28,7 @@ my @exclusion_types = (
     'Non-standard system',
     'Currently out of scope'
 );
+my %exclusion_types = map { $_ => 0 } @exclusion_types;
 
 my @stages = (
     'DEV-Stage Automation Type',
@@ -204,16 +205,18 @@ sub parse_excelfile {
                         $value = $cell->value();
                     }
                     if (exists $stages{$field} || $field eq 'CD Exclusion Criterion') {
-                        if ($value eq "" || $value =~ /^ *$/) {
+                        if ($value eq "") {
                             $value = "None";
                         }
                     }
                     $asset{$field} = $value;
-                    printf("DEBUG: field '%30s' value '%s'\n", $field, $value)
-                        if $DEBUG;
-
+                    printf("DEBUG: field '%30s' value '%s'\n", $field, $value) if $DEBUG;
                 }
 
+                if (!exists $exclusion_types{$asset{'CD Exclusion Criterion'}}) {
+                    printf("INCONSISTENCY: unknown CD exclusion criterion (%s) for asset %-6s\n",
+                        $asset{'CD Exclusion Criterion'}, $asset{'YP2-ID'})
+                }
                 $exclusion_count{$asset{'CD Exclusion Criterion'}}++;
                 if ($asset{'CD Exclusion Criterion'} eq "None") {
                     foreach my $stage (@stages) {
@@ -221,6 +224,10 @@ sub parse_excelfile {
                             my $value = $asset{$stage};
                             $automation_count{$stage}{$value}++;
                             printf("DEBUG: %30s: '%s' ++\n", $stage, $asset{$stage}) if $DEBUG;
+                            if (!exists $automation_types{$asset{$stage}}) {
+                                 printf("INCONSISTENCY: unknown automation type (%s) for asset %-6s\n",
+                                     $asset{$stage}, $asset{'YP2-ID'})
+                            }
                         }
                     }
                 }
@@ -235,13 +242,17 @@ sub parse_excelfile {
         printf("  %-33s: %3i\n\n", "Artefact count", $artefact_count);
 
         print "  CD Exclusion Criterions\n";
-        my $excsum = 0;
+        my $exclsum = 0;
         foreach my $exclusion_type (@exclusion_types) {
             my $value = $exclusion_count{$exclusion_type};
-            $excsum += $value;
-            printf("    %-30s : %3i\n", $exclusion_type, $value);
+            $exclsum += $value;
+            printf("    %-30s %3i\n", $exclusion_type, $value);
         }
-        printf("    %32s %3i\n\n", "Sum", $excsum);
+        if ($exclsum != $artefact_count) {
+            printf("INCONSISTENCY: sum of exclusion criterions (%i) does not equal artefact count (%i)",
+                $exclsum, $artefact_count);
+        }
+        print "\n";
 
         foreach my $stage (@stages) {
             print "  $stage\n";
@@ -250,10 +261,10 @@ sub parse_excelfile {
                 if ($autotype ne "None") {
                     my $value = $automation_count{$stage}{$autotype};
                     $sum += $value;
-                    printf("    %-30s : %3i\n", $autotype, $value);
+                    printf("    %-30s %3i\n", $autotype, $value);
                 }
             }
-            printf("    %32s %3i\n\n", "Sum", $sum);
+            printf("    %30s %3i\n\n", "Sum", $sum);
         }
     }
     return \%file_hash;
