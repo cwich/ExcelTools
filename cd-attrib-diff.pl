@@ -21,26 +21,28 @@ my %field_column_names = (
     'Cloud Maturity Grade'       => 'Cloud Maturity Grade'
 );
 
-my %exclusion_types = (
-    'None'                   => 0,
-    'End of life'            => 0,
-    'Non-linux middleware'   => 0,
-    'Non-standard system'    => 0,
-    'Currently out of scope' => 0
+my @exclusion_types = (
+    'None',
+    'End of life',
+    'Non-linux middleware',
+    'Non-standard system',
+    'Currently out of scope'
 );
 
-my %stages = (
-    'DEV-Stage Automation Type'  => 0,
-    'AC1-Stage Automation Type'  => 0,
-    'PROD-Stage Automation Type' => 0
+my @stages = (
+    'DEV-Stage Automation Type',
+    'AC1-Stage Automation Type',
+    'PROD-Stage Automation Type'
 );
+my %stages = map { $_ => 0 } @stages;
 
-my %automation_types = (
-    'None'                        => 0,
-    'No automation'               => 0,
-    'Legacy automation'           => 0,
-    'Target automation (ansible)' => 0
+my @automation_types = (
+    'None',
+    'No automation',
+    'Legacy automation',
+    'Target automation (ansible)'
 );
+my %automation_types = map { $_ => 0 } @automation_types;
 
 my $base_file_hashref = parse_excelfile($base_file);
 my $diff_file_hashref = parse_excelfile($diff_file);
@@ -105,7 +107,8 @@ sub asset_diff {
     my $asset1_ref = shift;
     my $asset2_ref = shift;
     my @result;
-    my @fields = sort keys %stages;
+    my @fields = ();
+    push @fields, @stages;
     push @fields, 'CD Exclusion Criterion';
 
     foreach (@fields) {
@@ -175,13 +178,13 @@ sub parse_excelfile {
 
         my $artefact_count = 0;
         my %exclusion_count = ();
-        foreach my $exclusion_type (keys %exclusion_types) {
-            $exclusion_count{$exclusion_type} = 0;
+        foreach (@exclusion_types) {
+            $exclusion_count{$_} = 0;
         }
         my %automation_count = ();
-        foreach my $stage (keys %stages) {
-            foreach my $automation_type (keys %automation_types) {
-                $automation_count{$stage}{$automation_type} = 0;
+        foreach my $stage (@stages) {
+            foreach (@automation_types) {
+                $automation_count{$stage}{$_} = 0;
             }
         }
 
@@ -213,7 +216,7 @@ sub parse_excelfile {
 
                 $exclusion_count{$asset{'CD Exclusion Criterion'}}++;
                 if ($asset{'CD Exclusion Criterion'} eq "None") {
-                    foreach my $stage (sort keys %stages) {
+                    foreach my $stage (@stages) {
                         if (exists $asset{$stage}) {
                             my $value = $asset{$stage};
                             $automation_count{$stage}{$value}++;
@@ -233,24 +236,24 @@ sub parse_excelfile {
 
         print "  CD Exclusion Criterions\n";
         my $excsum = 0;
-        foreach my $exclusion_type (sort keys %exclusion_count) {
+        foreach my $exclusion_type (@exclusion_types) {
             my $value = $exclusion_count{$exclusion_type};
             $excsum += $value;
             printf("    %-30s : %3i\n", $exclusion_type, $value);
         }
-        printf("    %30s : %3i\n\n", "Sum", $excsum);
+        printf("    %32s %3i\n\n", "Sum", $excsum);
 
-        foreach my $stage (sort keys %automation_count) {
+        foreach my $stage (@stages) {
             print "  $stage\n";
             my $sum = 0;
-            foreach my $autotype (sort keys $automation_count{$stage}) {
+            foreach my $autotype (@automation_types) {
                 if ($autotype ne "None") {
                     my $value = $automation_count{$stage}{$autotype};
                     $sum += $value;
                     printf("    %-30s : %3i\n", $autotype, $value);
                 }
             }
-            printf("    %30s : %3i\n\n", "Sum", $sum);
+            printf("    %32s %3i\n\n", "Sum", $sum);
         }
     }
     return \%file_hash;
