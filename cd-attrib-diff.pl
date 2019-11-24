@@ -18,6 +18,7 @@ my %field_column_names = (
     'DEV-Stage Automation Type'  => '[CD-state] development',
     'AC1-Stage Automation Type'  => '[CD-state] integration',
     'PROD-Stage Automation Type' => '[CD-state] production',
+    'CD Pipeline Automated'      => 'Continuous delivery URL',
     'Cloud Maturity Grade'       => 'Cloud Maturity Grade'
 );
 
@@ -176,6 +177,7 @@ sub parse_excelfile {
                 }
             }
         }
+        print "\n" if $DEBUG;
 
         my $artefact_count = 0;
         my %exclusion_count = ();
@@ -188,6 +190,7 @@ sub parse_excelfile {
                 $automation_count{$stage}{$_} = 0;
             }
         }
+        my $cd_pipeline_count = 0;
 
         for my $row ($row_min .. $row_max) {
             my $cell = $worksheet->get_cell($row, $field_column_position{'Project'});
@@ -231,6 +234,9 @@ sub parse_excelfile {
                         }
                     }
                 }
+                if (exists $asset{'CD Pipeline Automated'} && $asset{'CD Pipeline Automated'} ne "") {
+                    $cd_pipeline_count++;
+                }
                 print "\n" if $DEBUG;
 
                 $file_hash{ $asset{'YP2-ID'} } = \%asset;
@@ -239,7 +245,7 @@ sub parse_excelfile {
 
         #print Dumper(\%file_hash);
 
-        printf("  %-33s: %3i\n\n", "Artefact count", $artefact_count);
+        printf("  %-32s %3i\n\n", "Artefact count", $artefact_count);
 
         print "  CD Exclusion Criterions\n";
         my $exclsum = 0;
@@ -266,6 +272,8 @@ sub parse_excelfile {
             }
             printf("    %30s %3i\n\n", "Sum", $sum);
         }
+
+        printf("  %-32s %3i\n\n", "CD Pipeline automated", $cd_pipeline_count);
     }
     return \%file_hash;
 }
