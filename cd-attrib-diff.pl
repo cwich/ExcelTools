@@ -9,21 +9,36 @@ my $base_file = shift;
 my $diff_file = shift;
 my $DEBUG = 0;
 
+# static field name definitions
+my $project_name = 'Project';
+my $yp2id_name = 'YP2-ID';
+my $artefact_name = 'Artefact-Name';
+my $buildresp_name = 'BUILD-Responsible';
+my $cdexclcrit_name = 'CD Exclusion Criterion';
+my $devstage_name = 'DEV-Stage';
+my $intstage_name = 'AC1-Stage';
+my $prod_stage_name = 'PROD-Stage';
+my $cdpipelineauto_name = 'CD Pipeline Automated';
+my $cloudmatgrade_name = 'Cloud Maturity Grade';
+
+# field name to excel header name mapping
 my %field_column_names = (
-    'Project'                    => 'Project',
-    'YP2-ID'                     => 'Key',
-    'Artefact-Name'              => 'Summary',
-    'BUILD-Responsible'          => 'Build Responsible',
-    'CD Exclusion Criterion'     => 'Criterion for exclusion Continuous Delivery (CD)',
-    'DEV-Stage Automation Type'  => '[CD-state] development',
-    'AC1-Stage Automation Type'  => '[CD-state] integration',
-    'PROD-Stage Automation Type' => '[CD-state] production',
-    'CD Pipeline Automated'      => 'Continuous delivery URL',
-    'Cloud Maturity Grade'       => 'Cloud Maturity Grade'
+    $project_name                => 'Project',
+    $yp2id_name                  => 'Key',
+    $artefact_name               => 'Summary',
+    $buildresp_name              => 'Build Responsible',
+    $cdexclcrit_name             => 'Criterion for exclusion Continuous Delivery (CD)',
+    $devstage_name               => '[CD-state] development',
+    $intstage_name               => '[CD-state] integration',
+    $prod_stage_name             => '[CD-state] production',
+    $cdpipelineauto_name         => 'Continuous delivery URL',
+    $cloudmatgrade_name          => 'Cloud Maturity Grade'
 );
 
+# static value name definitions
+my $none_name = 'None';
 my @exclusion_types = (
-    'None',
+    $none_name,
     'End of life',
     'Non-linux middleware',
     'Non-standard system',
@@ -32,14 +47,14 @@ my @exclusion_types = (
 my %exclusion_types = map { $_ => 0 } @exclusion_types;
 
 my @stages = (
-    'DEV-Stage Automation Type',
-    'AC1-Stage Automation Type',
-    'PROD-Stage Automation Type'
+    $devstage_name,
+    $intstage_name,
+    $prod_stage_name
 );
 my %stages = map { $_ => 0 } @stages;
 
 my @deployment_types = (
-    'None',
+    $none_name,
     'No automation',
     'Legacy automation',
     'Target automation (ansible)'
@@ -47,7 +62,7 @@ my @deployment_types = (
 my %deployment_types = map { $_ => 0 } @deployment_types;
 
 my @cloud_maturity_grades = (
-    'None',
+    $none_name,
     'Level 0 - Virtualized',
     'Level 1 - Loosely Coupled',
     'Level 2 - Abstracted',
@@ -55,9 +70,11 @@ my @cloud_maturity_grades = (
 );
 my %cloud_maturity_grades = map { $_ => 0 } @cloud_maturity_grades;
 
+# parse excel files
 my $base_file_hashref = parse_excelfile($base_file);
 my $diff_file_hashref = parse_excelfile($diff_file);
 
+# calculate diffs between excel files
 print "Diffs:\n";
 
 my $remove_count = 0;
@@ -97,13 +114,17 @@ printf("  removed assets : %3i\n", $remove_count);
 printf("  added assets   : %3i\n", $add_count);
 printf("  changed assets : %3i\n", $diff_count);
 
+exit;
+
+## subroutines ##
+
 sub sprint_asset {
     my $asset_hashref = shift;
     return sprintf(
         "%-8s '%s' => (%s)",
-        $asset_hashref->{'YP2-ID'},
-        encode("UTF-8", $asset_hashref->{'Artefact-Name'}),
-        encode("UTF-8", $asset_hashref->{'BUILD-Responsible'})
+        $asset_hashref->{$yp2id_name},
+        encode("UTF-8", $asset_hashref->{$artefact_name}),
+        encode("UTF-8", $asset_hashref->{$buildresp_name})
     );
 }
 
@@ -120,9 +141,9 @@ sub asset_diff {
     my @result;
     my @fields = ();
     push @fields, @stages;
-    push @fields, 'CD Exclusion Criterion';
-    push @fields, 'CD Pipeline Automated';
-    push @fields, 'Cloud Maturity Grade';
+    push @fields, $cdexclcrit_name;
+    push @fields, $cdpipelineauto_name;
+    push @fields, $cloudmatgrade_name;
 
     foreach (@fields) {
         if (exists $asset1_ref->{$_}) {
@@ -208,37 +229,37 @@ sub parse_excelfile {
         }
 
         for my $row ($row_min .. $row_max) {
-            my $cell = $worksheet->get_cell($row, $field_column_position{'Project'});
+            my $cell = $worksheet->get_cell($row, $field_column_position{$project_name});
             next unless $cell;
             if ($cell->value() eq "Yellow Pages Assets") {
                 $artefact_count++;
                 my %asset = ();
 
                 foreach my $field (keys %field_column_position) {
-                    next if $field eq "Project";
+                    next if $field eq $project_name;
 
                     my $cell = $worksheet->get_cell($row, $field_column_position{$field});
                     my $value = "";
                     if (defined($cell)) {
                         $value = $cell->value();
                     }
-                    if (exists $stages{$field} || $field eq 'CD Exclusion Criterion'
-                        || $field eq 'Cloud Maturity Grade') {
+                    if (exists $stages{$field} || $field eq $cdexclcrit_name
+                        || $field eq $cloudmatgrade_name) {
                         if ($value eq "") {
-                            $value = "None";
+                            $value = $none_name;
                         }
                     }
                     $asset{$field} = $value;
                     printf("DEBUG: field '%30s' value '%s'\n", $field, $value) if $DEBUG;
                 }
 
-                if (exists $exclusion_types{$asset{'CD Exclusion Criterion'}}) {
-                    $exclusion_count{$asset{'CD Exclusion Criterion'}}++;
+                if (exists $exclusion_types{$asset{$cdexclcrit_name}}) {
+                    $exclusion_count{$asset{$cdexclcrit_name}}++;
                 } else {
                     printf("INCONSISTENCY: unknown CD exclusion criterion (%s) for asset %-6s\n",
-                        $asset{'CD Exclusion Criterion'}, $asset{'YP2-ID'})
+                        $asset{$cdexclcrit_name}, $asset{$yp2id_name})
                 }
-                if ($asset{'CD Exclusion Criterion'} eq "None") {
+                if ($asset{$cdexclcrit_name} eq $none_name) {
                     foreach my $stage (@stages) {
                         if (exists $asset{$stage}) {
                             my $value = $asset{$stage};
@@ -246,34 +267,38 @@ sub parse_excelfile {
                             printf("DEBUG: %30s: '%s' ++\n", $stage, $asset{$stage}) if $DEBUG;
                             if (!exists $deployment_types{$asset{$stage}}) {
                                  printf("INCONSISTENCY: unknown automation type (%s) for asset %-6s\n",
-                                     $asset{$stage}, $asset{'YP2-ID'})
+                                     $asset{$stage}, $asset{$yp2id_name})
                             }
                         }
                     }
                 }
-                if (exists $asset{'CD Pipeline Automated'} && $asset{'CD Pipeline Automated'} ne "") {
+                if (exists $asset{$cdpipelineauto_name} && $asset{$cdpipelineauto_name} ne "") {
                     $cd_pipeline_count++;
                 }
-                if (exists $cloud_maturity_grades{$asset{'Cloud Maturity Grade'}}) {
-                    $cloudmaturity_count{$asset{'Cloud Maturity Grade'}}++;
+                if (exists $cloud_maturity_grades{$asset{$cloudmatgrade_name}}) {
+                    $cloudmaturity_count{$asset{$cloudmatgrade_name}}++;
+                    if ($asset{$cloudmatgrade_name} eq $none_name) {
+                        printf("WARNING: cloud maturity grade not set for asset %-6s\n",
+                            $asset{$yp2id_name});
+                    }
                 } else {
                     printf("INCONSISTENCY: unknown cloud maturity grade (%s) for asset %-6s\n",
-                        $asset{'Cloud Maturity Grade'}, $asset{'YP2-ID'})
+                        $asset{$cloudmatgrade_name}, $asset{$yp2id_name})
                 }
                 print "\n" if $DEBUG;
 
-                $file_hash{ $asset{'YP2-ID'} } = \%asset;
+                $file_hash{ $asset{$yp2id_name} } = \%asset;
             }
         }
 
         printf("  %-32s %3i\n\n", "Artefact count", $artefact_count);
 
-        print "  CD Exclusion Criterions\n";
+        print "  ${cdexclcrit_name}s\n";
         my $exclsum = 0;
-        foreach my $exclusion_type (@exclusion_types) {
-            my $value = $exclusion_count{$exclusion_type};
+        foreach (@exclusion_types) {
+            my $value = $exclusion_count{$_};
             $exclsum += $value;
-            printf("    %-30s %3i\n", $exclusion_type, $value);
+            printf("    %-30s %3i\n", $_, $value);
         }
         if ($exclsum != $artefact_count) {
             printf("INCONSISTENCY: sum of exclusion criterions (%i) does not equal artefact count (%i)",
@@ -282,13 +307,13 @@ sub parse_excelfile {
         print "\n";
 
         foreach my $stage (@stages) {
-            print "  $stage\n";
+            print "  $stage Deployment Types\n";
             my $sum = 0;
-            foreach my $autotype (@deployment_types) {
-                if ($autotype ne "None") {
-                    my $value = $automation_count{$stage}{$autotype};
+            foreach (@deployment_types) {
+                if ($_ ne $none_name) {
+                    my $value = $automation_count{$stage}{$_};
                     $sum += $value;
-                    printf("    %-30s %3i\n", $autotype, $value);
+                    printf("    %-30s %3i\n", $_, $value);
                 }
             }
             printf("    %30s %3i\n\n", "Sum", $sum);
@@ -296,7 +321,7 @@ sub parse_excelfile {
 
         printf("  %-32s %3i\n\n", "CD Pipeline automated", $cd_pipeline_count);
 
-        print "  Cloud Maturity Grades\n";
+        print "  ${cloudmatgrade_name}s\n";
         my $cmgsum = 0;
         foreach (@cloud_maturity_grades) {
             my $value = $cloudmaturity_count{$_};
