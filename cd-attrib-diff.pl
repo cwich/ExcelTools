@@ -2,7 +2,6 @@
 use strict;
 use warnings;
 use Encode qw(decode encode);
-use Data::Dumper;
 use Spreadsheet::ParseExcel;
 
 my $base_file = shift;
@@ -38,13 +37,22 @@ my @stages = (
 );
 my %stages = map { $_ => 0 } @stages;
 
-my @automation_types = (
+my @deployment_types = (
     'None',
     'No automation',
     'Legacy automation',
     'Target automation (ansible)'
 );
-my %automation_types = map { $_ => 0 } @automation_types;
+my %deployment_types = map { $_ => 0 } @deployment_types;
+
+my @cloud_maturity_grades = (
+    'None',
+    'Level 0 - Virtualized',
+    'Level 1 - Loosely Coupled',
+    'Level 2 - Abstracted',
+    'Level 3 - Adaptive'
+);
+my %cloud_maturity_grades = map { $_ => 0 } @cloud_maturity_grades;
 
 my $base_file_hashref = parse_excelfile($base_file);
 my $diff_file_hashref = parse_excelfile($diff_file);
@@ -186,11 +194,15 @@ sub parse_excelfile {
         }
         my %automation_count = ();
         foreach my $stage (@stages) {
-            foreach (@automation_types) {
+            foreach (@deployment_types) {
                 $automation_count{$stage}{$_} = 0;
             }
         }
         my $cd_pipeline_count = 0;
+        my %cloudmaturity_count = ();
+        foreach (@cloud_maturity_grades) {
+            $cloudmaturity_count{$_} = 0;
+        }
 
         for my $row ($row_min .. $row_max) {
             my $cell = $worksheet->get_cell($row, $field_column_position{'Project'});
@@ -207,7 +219,8 @@ sub parse_excelfile {
                     if (defined($cell)) {
                         $value = $cell->value();
                     }
-                    if (exists $stages{$field} || $field eq 'CD Exclusion Criterion') {
+                    if (exists $stages{$field} || $field eq 'CD Exclusion Criterion'
+                        || $field eq 'Cloud Maturity Grade') {
                         if ($value eq "") {
                             $value = "None";
                         }
@@ -216,18 +229,19 @@ sub parse_excelfile {
                     printf("DEBUG: field '%30s' value '%s'\n", $field, $value) if $DEBUG;
                 }
 
-                if (!exists $exclusion_types{$asset{'CD Exclusion Criterion'}}) {
+                if (exists $exclusion_types{$asset{'CD Exclusion Criterion'}}) {
+                    $exclusion_count{$asset{'CD Exclusion Criterion'}}++;
+                } else {
                     printf("INCONSISTENCY: unknown CD exclusion criterion (%s) for asset %-6s\n",
                         $asset{'CD Exclusion Criterion'}, $asset{'YP2-ID'})
                 }
-                $exclusion_count{$asset{'CD Exclusion Criterion'}}++;
                 if ($asset{'CD Exclusion Criterion'} eq "None") {
                     foreach my $stage (@stages) {
                         if (exists $asset{$stage}) {
                             my $value = $asset{$stage};
                             $automation_count{$stage}{$value}++;
                             printf("DEBUG: %30s: '%s' ++\n", $stage, $asset{$stage}) if $DEBUG;
-                            if (!exists $automation_types{$asset{$stage}}) {
+                            if (!exists $deployment_types{$asset{$stage}}) {
                                  printf("INCONSISTENCY: unknown automation type (%s) for asset %-6s\n",
                                      $asset{$stage}, $asset{'YP2-ID'})
                             }
@@ -237,13 +251,17 @@ sub parse_excelfile {
                 if (exists $asset{'CD Pipeline Automated'} && $asset{'CD Pipeline Automated'} ne "") {
                     $cd_pipeline_count++;
                 }
+                if (exists $cloud_maturity_grades{$asset{'Cloud Maturity Grade'}}) {
+                    $cloudmaturity_count{$asset{'Cloud Maturity Grade'}}++;
+                } else {
+                    printf("INCONSISTENCY: unknown cloud maturity grade (%s) for asset %-6s\n",
+                        $asset{'Cloud Maturity Grade'}, $asset{'YP2-ID'})
+                }
                 print "\n" if $DEBUG;
 
                 $file_hash{ $asset{'YP2-ID'} } = \%asset;
             }
         }
-
-        #print Dumper(\%file_hash);
 
         printf("  %-32s %3i\n\n", "Artefact count", $artefact_count);
 
@@ -263,7 +281,7 @@ sub parse_excelfile {
         foreach my $stage (@stages) {
             print "  $stage\n";
             my $sum = 0;
-            foreach my $autotype (@automation_types) {
+            foreach my $autotype (@deployment_types) {
                 if ($autotype ne "None") {
                     my $value = $automation_count{$stage}{$autotype};
                     $sum += $value;
@@ -274,6 +292,20 @@ sub parse_excelfile {
         }
 
         printf("  %-32s %3i\n\n", "CD Pipeline automated", $cd_pipeline_count);
+
+        print "  Cloud Maturity Grades\n";
+        my $cmgsum = 0;
+        foreach (@cloud_maturity_grades) {
+            my $value = $cloudmaturity_count{$_};
+            $cmgsum += $value;
+            printf("    %-30s %3i\n", $_, $value);
+        }
+        if ($cmgsum != $artefact_count) {
+            printf("INCONSISTENCY: sum of cloud maturity grades (%i) does not equal artefact count (%i)",
+                $cmgsum, $artefact_count);
+        }
+        print "\n";
+
     }
     return \%file_hash;
 }
