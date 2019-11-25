@@ -1,6 +1,7 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use Data::Dumper;
 use Encode qw(decode encode);
 use Spreadsheet::ParseExcel;
 
@@ -120,6 +121,8 @@ sub asset_diff {
     my @fields = ();
     push @fields, @stages;
     push @fields, 'CD Exclusion Criterion';
+    push @fields, 'CD Pipeline Automated';
+    push @fields, 'Cloud Maturity Grade';
 
     foreach (@fields) {
         if (exists $asset1_ref->{$_}) {
