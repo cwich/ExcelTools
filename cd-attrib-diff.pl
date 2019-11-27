@@ -1,13 +1,35 @@
 #!/usr/bin/perl
 use strict;
 use warnings;
+use File::Basename;
+use Getopt::Long;
+use Pod::Usage;
 use Data::Dumper;
 use Encode qw(decode encode);
 use Spreadsheet::ParseExcel;
 
-my $base_file = shift;
-my $diff_file = shift;
+my $VERSION = 0.9;
+
+# options
+my $HELP;
 my $DEBUG = 0;
+my $VERBOSE = 0;
+my $BASE_FILE;
+my $DIFF_FILE;
+
+GetOptions ("help!" => \$HELP,
+			"debug!" => \$DEBUG,
+			"verbose!" => \$VERBOSE)
+			or pod2usage("Try '$0 --help' for more information.");
+
+if ($HELP) {
+	print basename($0) . " v$VERSION\n\n";
+	pod2usage(1) ;
+}
+
+$BASE_FILE = shift;
+die "ERROR: no basefile specified" if !defined($BASE_FILE);
+$DIFF_FILE = shift;
 
 # static field name definitions
 my $project_name = 'Project';
@@ -71,8 +93,10 @@ my @cloud_maturity_grades = (
 my %cloud_maturity_grades = map { $_ => 0 } @cloud_maturity_grades;
 
 # parse excel files
-my $base_file_hashref = parse_excelfile($base_file);
-my $diff_file_hashref = parse_excelfile($diff_file);
+my $base_file_hashref = parse_excelfile($BASE_FILE);
+exit unless defined($DIFF_FILE);
+
+my $diff_file_hashref = parse_excelfile($DIFF_FILE);
 
 # calculate diffs between excel files
 print "Diffs:\n";
@@ -196,9 +220,9 @@ sub parse_excelfile {
         my %field_column_position = ();
 
         for my $col ($col_min .. $col_max) {
-            my $cell = $worksheet->get_cell(3, $col);
-            next unless $cell;
-            my $cell_value = $cell->value();
+            my $headercell = $worksheet->get_cell(3, $col);
+            next unless $headercell;
+            my $cell_value = $headercell->value();
 
             foreach my $field (keys %field_column_names) {
                 if ($cell_value eq $field_column_names{$field}) {
@@ -238,10 +262,10 @@ sub parse_excelfile {
                 foreach my $field (keys %field_column_position) {
                     next if $field eq $project_name;
 
-                    my $cell = $worksheet->get_cell($row, $field_column_position{$field});
+                    my $yp2cell = $worksheet->get_cell($row, $field_column_position{$field});
                     my $value = "";
-                    if (defined($cell)) {
-                        $value = $cell->value();
+                    if (defined($yp2cell)) {
+                        $value = $yp2cell->value();
                     }
                     if (exists $stages{$field} || $field eq $cdexclcrit_name
                         || $field eq $cloudmatgrade_name) {
@@ -337,3 +361,51 @@ sub parse_excelfile {
     }
     return \%file_hash;
 }
+
+__END__
+
+=head1 NAME
+
+yp2tool.pl - extract information and calculate differences out of YP2 exported Excel-files
+
+=head1 SYNOPSIS
+
+yp2tool.pl [options] <base-file> [<diff-file>]
+
+=over 10
+
+=item B<base-file>
+
+Filename of the YP2 exported Excel-file that is used as base for information extraction.
+
+=item B<diff-file>
+
+Filename of second YP2 exported Excel-file that is used for diff-calculation.
+
+=cut
+
+=back
+
+=head1 OPTIONS
+
+=over 10
+
+=item B<-help>
+
+Print a brief help message and exits.
+
+=item B<-verbose>
+
+Output verbose information during processing.
+
+=item B<-debug>
+
+Output debugging information during processing.
+
+=back
+
+=head1 DESCRIPTION
+
+...tbd
+
+=cut
