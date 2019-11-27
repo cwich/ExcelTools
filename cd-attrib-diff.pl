@@ -8,7 +8,7 @@ use Data::Dumper;
 use Encode qw(decode encode);
 use Spreadsheet::ParseExcel;
 
-my $VERSION = 0.9;
+my $VERSION = 0.10;
 
 # options
 my $HELP;
@@ -28,7 +28,12 @@ if ($HELP) {
 }
 
 $BASE_FILE = shift;
-die "ERROR: no basefile specified" if !defined($BASE_FILE);
+if (!defined($BASE_FILE)) {
+    print "no basefile specified - nothing to do...\n";
+    pod2usage("Try '$0 --help' for more information.");
+    exit 1;
+}
+#die "ERROR: no basefile specified" if !defined($BASE_FILE);
 $DIFF_FILE = shift;
 
 # static field name definitions
@@ -214,8 +219,8 @@ sub parse_excelfile {
 
         my ($row_min, $row_max) = $worksheet->row_range();
         my ($col_min, $col_max) = $worksheet->col_range();
-        print "DEBUG: rows: $row_min - $row_max\n" if $DEBUG;
-        print "DEBUG: cols: $col_min - $col_max\n" if $DEBUG;
+        print "DEBUG: rows $row_min - $row_max\n" if $DEBUG;
+        print "DEBUG: cols $col_min - $col_max\n" if $DEBUG;
 
         my %field_column_position = ();
 
@@ -227,13 +232,12 @@ sub parse_excelfile {
             foreach my $field (keys %field_column_names) {
                 if ($cell_value eq $field_column_names{$field}) {
                     $field_column_position{$field} = $col;
-                    printf("DEBUG: found field '%30s' at column %3i\n",
+                    printf("DEBUG: found field %-30s at column %5i\n",
                         $field, $col)
                         if $DEBUG;
                 }
             }
         }
-        print "\n" if $DEBUG;
 
         my $artefact_count = 0;
         my %exclusion_count = ();
@@ -256,6 +260,7 @@ sub parse_excelfile {
             my $cell = $worksheet->get_cell($row, $field_column_position{$project_name});
             next unless $cell;
             if ($cell->value() eq "Yellow Pages Assets") {
+                printf("DEBUG: found Yellow Page Asset\n") if $DEBUG;
                 $artefact_count++;
                 my %asset = ();
 
@@ -274,7 +279,7 @@ sub parse_excelfile {
                         }
                     }
                     $asset{$field} = $value;
-                    printf("DEBUG: field '%30s' value '%s'\n", $field, $value) if $DEBUG;
+                    printf("DEBUG:   field '%s' value '%s'\n", $field, $value) if $DEBUG;
                 }
 
                 if (exists $exclusion_types{$asset{$cdexclcrit_name}}) {
@@ -288,7 +293,6 @@ sub parse_excelfile {
                         if (exists $asset{$stage}) {
                             my $value = $asset{$stage};
                             $automation_count{$stage}{$value}++;
-                            printf("DEBUG: %30s: '%s' ++\n", $stage, $asset{$stage}) if $DEBUG;
                             if (!exists $deployment_types{$asset{$stage}}) {
                                  printf("INCONSISTENCY: unknown automation type (%s) for asset %-6s\n",
                                      $asset{$stage}, $asset{$yp2id_name})
@@ -303,13 +307,12 @@ sub parse_excelfile {
                     $cloudmaturity_count{$asset{$cloudmatgrade_name}}++;
                     if ($asset{$cloudmatgrade_name} eq $none_name) {
                         printf("WARNING: cloud maturity grade not set for asset %-6s\n",
-                            $asset{$yp2id_name});
+                            $asset{$yp2id_name}) if $VERBOSE;
                     }
                 } else {
                     printf("INCONSISTENCY: unknown cloud maturity grade (%s) for asset %-6s\n",
                         $asset{$cloudmatgrade_name}, $asset{$yp2id_name})
                 }
-                print "\n" if $DEBUG;
 
                 $file_hash{ $asset{$yp2id_name} } = \%asset;
             }
@@ -376,11 +379,11 @@ yp2tool.pl [options] <base-file> [<diff-file>]
 
 =item B<base-file>
 
-Filename of the YP2 exported Excel-file that is used as base for information extraction.
+Filename of the YP2 exported Excel-file that will be used for information extraction.
 
 =item B<diff-file>
 
-Filename of second YP2 exported Excel-file that is used for diff-calculation.
+Filename of second YP2 exported Excel-file that will be used for diff-calculation against the base-file.
 
 =cut
 
@@ -392,7 +395,7 @@ Filename of second YP2 exported Excel-file that is used for diff-calculation.
 
 =item B<-help>
 
-Print a brief help message and exits.
+Print usage information and exit.
 
 =item B<-verbose>
 
