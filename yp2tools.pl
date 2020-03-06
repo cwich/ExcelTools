@@ -84,12 +84,14 @@ my @deployment_types = (
     $none_name,
     'No automation',
     'Legacy automation',
-    'Target automation (ansible)'
+    'Target automation (ansible)',
+    $cdpipelineauto_name
 );
 my %deployment_types = map { $_ => 0 } @deployment_types;
 
 my @cloud_maturity_grades = (
     $none_name,
+    'N/A (not applicable)',
     'Level 0 - Virtualized',
     'Level 1 - Loosely Coupled',
     'Level 2 - Abstracted',
@@ -106,21 +108,21 @@ my $diff_file_hashref = parse_excelfile($DIFF_FILE);
 # calculate diffs between excel files
 print "Diffs:\n";
 
-my $remove_count = 0;
+my $add_count = 0;
 foreach my $key (sort keys %{$base_file_hashref}) {
     if (!exists $diff_file_hashref->{$key}) {
-        print "  - " . Dumper($base_file_hashref->{$key}) . "\n" if $DEBUG;
-        print "  - " . sprint_asset($base_file_hashref->{$key}) . "\n";
-        $remove_count++;
+        print "  + " . Dumper($base_file_hashref->{$key}) . "\n" if $DEBUG;
+        print "  + " . sprint_asset($base_file_hashref->{$key}) . "\n";
+        $add_count++;
     }
 }
 
-my $add_count = 0;
+my $remove_count = 0;
 foreach my $key (sort keys %{$diff_file_hashref}) {
     if (!exists $base_file_hashref->{$key}) {
-        print "  + " . Dumper($diff_file_hashref->{$key}) . "\n" if $DEBUG;
-        print "  + " . sprint_asset($diff_file_hashref->{$key}) . "\n";
-        $add_count++;
+        print "  - " . Dumper($diff_file_hashref->{$key}) . "\n" if $DEBUG;
+        print "  - " . sprint_asset($diff_file_hashref->{$key}) . "\n";
+        $remove_count++;
     }
 }
 
@@ -139,8 +141,8 @@ foreach my $key (sort keys %{$base_file_hashref}) {
 print "\n";
 
 print "Summary:\n";
-printf("  removed assets : %3i\n", $remove_count);
 printf("  added assets   : %3i\n", $add_count);
+printf("  removed assets : %3i\n", $remove_count);
 printf("  changed assets : %3i\n", $diff_count);
 
 exit;
@@ -180,7 +182,7 @@ sub asset_diff {
                 my $value1 = $asset1_ref->{$_};
                 my $value2 = $asset2_ref->{$_};
                 if ($value1 ne $value2) {
-                    push @result, "$_: '$value1' vs. '$value2'";
+                    push @result, "$_: '$value2' -> '$value1'";
                 }
             }
             else {
@@ -292,6 +294,9 @@ sub parse_excelfile {
                     foreach my $stage (@stages) {
                         if (exists $asset{$stage}) {
                             my $value = $asset{$stage};
+                            if (exists $asset{$cdpipelineauto_name} && $asset{$cdpipelineauto_name} ne "") {
+                                $value = $cdpipelineauto_name;
+                            }
                             $automation_count{$stage}{$value}++;
                             if (!exists $deployment_types{$asset{$stage}}) {
                                  printf("INCONSISTENCY: unknown automation type (%s) for asset %-6s\n",
@@ -346,7 +351,7 @@ sub parse_excelfile {
             printf("    %30s %3i\n\n", "Sum", $sum);
         }
 
-        printf("  %-32s %3i\n\n", "CD Pipeline automated", $cd_pipeline_count);
+        #printf("  %-32s %3i\n\n", "CD Pipeline automated", $cd_pipeline_count);
 
         print "  ${cloudmatgrade_name}s\n";
         my $cmgsum = 0;
