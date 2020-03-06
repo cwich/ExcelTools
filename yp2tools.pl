@@ -8,7 +8,7 @@ use Data::Dumper;
 use Encode qw(decode encode);
 use Spreadsheet::ParseExcel;
 
-my $VERSION = 0.10;
+my $VERSION = 0.11;
 
 # options
 my $HELP;
