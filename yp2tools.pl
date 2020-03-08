@@ -100,10 +100,10 @@ my @cloud_maturity_grades = (
 my %cloud_maturity_grades = map { $_ => 0 } @cloud_maturity_grades;
 
 # parse excel files
-my $base_file_hashref = parse_excelfile($BASE_FILE);
+my $base_file_hashref = parse_excelfile($BASE_FILE, 1);
 exit unless defined($DIFF_FILE);
 
-my $diff_file_hashref = parse_excelfile($DIFF_FILE);
+my $diff_file_hashref = parse_excelfile($DIFF_FILE, 0);
 
 # calculate diffs between excel files
 print "Diffs:\n";
@@ -205,8 +205,9 @@ sub asset_diff {
 sub parse_excelfile {
 
     my $excel_file = shift;
+    my $printresults = shift;
 
-    printf("processing File '%s'\n\n", $excel_file);
+    printf("processing File '%s'\n", $excel_file) if $VERBOSE || $DEBUG;
 
     my $parser = Spreadsheet::ParseExcel->new();
     my $workbook = $parser->parse($excel_file);
@@ -234,9 +235,7 @@ sub parse_excelfile {
             foreach my $field (keys %field_column_names) {
                 if ($cell_value eq $field_column_names{$field}) {
                     $field_column_position{$field} = $col;
-                    printf("DEBUG: found field %-30s at column %5i\n",
-                        $field, $col)
-                        if $DEBUG;
+                    printf("DEBUG: found field %-30s at column %5i\n", $field, $col) if $DEBUG;
                 }
             }
         }
@@ -274,8 +273,7 @@ sub parse_excelfile {
                     if (defined($yp2cell)) {
                         $value = $yp2cell->value();
                     }
-                    if (exists $stages{$field} || $field eq $cdexclcrit_name
-                        || $field eq $cloudmatgrade_name) {
+                    if (exists $stages{$field} || $field eq $cdexclcrit_name || $field eq $cloudmatgrade_name) {
                         if ($value eq "") {
                             $value = $none_name;
                         }
@@ -323,49 +321,51 @@ sub parse_excelfile {
             }
         }
 
-        printf("  %-32s %3i\n\n", "Artefact count", $artefact_count);
+        if (($printresults) || ($VERBOSE)) {
+            printf("results for File '%s'\n", $excel_file);
+            printf("  %-32s %3i\n\n", "Artefact count", $artefact_count);
 
-        print "  ${cdexclcrit_name}s\n";
-        my $exclsum = 0;
-        foreach (@exclusion_types) {
-            my $value = $exclusion_count{$_};
-            $exclsum += $value;
-            printf("    %-30s %3i\n", $_, $value);
-        }
-        if ($exclsum != $artefact_count) {
-            printf("INCONSISTENCY: sum of exclusion criterions (%i) does not equal artefact count (%i)",
-                $exclsum, $artefact_count);
-        }
-        print "\n";
-
-        foreach my $stage (@stages) {
-            print "  $stage Deployment Types\n";
-            my $sum = 0;
-            foreach (@deployment_types) {
-                if ($_ ne $none_name) {
-                    my $value = $automation_count{$stage}{$_};
-                    $sum += $value;
-                    printf("    %-30s %3i\n", $_, $value);
-                }
+            print "  ${cdexclcrit_name}s\n";
+            my $exclsum = 0;
+            foreach (@exclusion_types) {
+                my $value = $exclusion_count{$_};
+                $exclsum += $value;
+                printf("    %-30s %3i\n", $_, $value);
             }
-            printf("    %30s %3i\n\n", "Sum", $sum);
-        }
+            if ($exclsum != $artefact_count) {
+                printf("INCONSISTENCY: sum of exclusion criterions (%i) does not equal artefact count (%i)",
+                    $exclsum, $artefact_count);
+            }
+            print "\n";
 
-        #printf("  %-32s %3i\n\n", "CD Pipeline automated", $cd_pipeline_count);
+            foreach my $stage (@stages) {
+                print "  $stage Deployment Types\n";
+                my $sum = 0;
+                foreach (@deployment_types) {
+                    if ($_ ne $none_name) {
+                        my $value = $automation_count{$stage}{$_};
+                        $sum += $value;
+                        printf("    %-30s %3i\n", $_, $value);
+                    }
+                }
+                printf("    %30s %3i\n\n", "Sum", $sum);
+            }
 
-        print "  ${cloudmatgrade_name}s\n";
-        my $cmgsum = 0;
-        foreach (@cloud_maturity_grades) {
-            my $value = $cloudmaturity_count{$_};
-            $cmgsum += $value;
-            printf("    %-30s %3i\n", $_, $value);
-        }
-        if ($cmgsum != $artefact_count) {
-            printf("INCONSISTENCY: sum of cloud maturity grades (%i) does not equal artefact count (%i)",
-                $cmgsum, $artefact_count);
-        }
-        print "\n";
+            printf("  %-32s %3i\n\n", "CD Pipeline automated", $cd_pipeline_count) if $VERBOSE;
 
+            print "  ${cloudmatgrade_name}s\n";
+            my $cmgsum = 0;
+            foreach (@cloud_maturity_grades) {
+                my $value = $cloudmaturity_count{$_};
+                $cmgsum += $value;
+                printf("    %-30s %3i\n", $_, $value);
+            }
+            if ($cmgsum != $artefact_count) {
+                printf("INCONSISTENCY: sum of cloud maturity grades (%i) does not equal artefact count (%i)",
+                    $cmgsum, $artefact_count);
+            }
+            print "\n";
+        }
     }
     return \%file_hash;
 }
