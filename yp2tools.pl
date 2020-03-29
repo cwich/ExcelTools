@@ -8,7 +8,7 @@ use Data::Dumper;
 use Encode qw(decode encode);
 use Spreadsheet::ParseExcel;
 
-my $VERSION = 0.13;
+my $VERSION = 0.14;
 
 # options
 my $HELP;
@@ -337,7 +337,7 @@ sub parse_excelfile {
                 }
 
                 $file_hash{ $asset{$yp2id_name} } = \%asset;
-                if (($printresults && @asset_errors > 0) || ($VERBOSE)) {
+                if (($printresults || $VERBOSE) && (@asset_errors > 0)) {
                     print "  " . sprint_asset(\%asset) . "\n";
                     foreach (@asset_errors) {
                         print "    $_\n";
