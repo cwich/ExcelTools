@@ -8,7 +8,7 @@ use Data::Dumper;
 use Encode qw(decode encode);
 use Spreadsheet::ParseExcel;
 
-my $VERSION = 0.11;
+my $VERSION = 0.12;
 
 # options
 my $HELP;
@@ -45,6 +45,7 @@ my $cdexclcrit_name = 'CD Exclusion Criterion';
 my $devstage_name = 'DEV-Stage';
 my $intstage_name = 'AC1-Stage';
 my $prod_stage_name = 'PROD-Stage';
+my $no_automation_name = "No automation";
 my $cdpipelineauto_name = 'CD Pipeline Automated';
 my $cloudmatgrade_name = 'Cloud Maturity Grade';
 
@@ -82,7 +83,7 @@ my %stages = map { $_ => 0 } @stages;
 
 my @deployment_types = (
     $none_name,
-    'No automation',
+    $no_automation_name,
     'Legacy automation',
     'Target automation (ansible)',
     $cdpipelineauto_name
@@ -245,10 +246,10 @@ sub parse_excelfile {
         foreach (@exclusion_types) {
             $exclusion_count{$_} = 0;
         }
-        my %automation_count = ();
+        my %deployment_count = ();
         foreach my $stage (@stages) {
             foreach (@deployment_types) {
-                $automation_count{$stage}{$_} = 0;
+                $deployment_count{$stage}{$_} = 0;
             }
         }
         my $cd_pipeline_count = 0;
@@ -264,6 +265,7 @@ sub parse_excelfile {
                 printf("DEBUG: found Yellow Page Asset\n") if $DEBUG;
                 $artefact_count++;
                 my %asset = ();
+                my @asset_errors = ();
 
                 foreach my $field (keys %field_column_position) {
                     next if $field eq $project_name;
@@ -285,22 +287,40 @@ sub parse_excelfile {
                 if (exists $exclusion_types{$asset{$cdexclcrit_name}}) {
                     $exclusion_count{$asset{$cdexclcrit_name}}++;
                 } else {
-                    printf("INCONSISTENCY: unknown CD exclusion criterion (%s) for asset %-6s\n",
-                        $asset{$cdexclcrit_name}, $asset{$yp2id_name})
+                    push(@asset_errors, sprintf("INCONSISTENCY: unknown CD exclusion criterion (%s)",
+                        $asset{$cdexclcrit_name}));
                 }
                 if ($asset{$cdexclcrit_name} eq $none_name) {
+                    my $will_be_deployed = 0;
+                    my @not_deployed_stages = ();
                     foreach my $stage (@stages) {
                         if (exists $asset{$stage}) {
                             my $value = $asset{$stage};
-                            if (exists $asset{$cdpipelineauto_name} && $asset{$cdpipelineauto_name} ne "") {
-                                $value = $cdpipelineauto_name;
+                            if (!exists $deployment_types{$value}) {
+                                 push(@asset_errors, sprintf("INCONSISTENCY: unknown automation type (%s)", $value));
                             }
-                            $automation_count{$stage}{$value}++;
-                            if (!exists $deployment_types{$asset{$stage}}) {
-                                 printf("INCONSISTENCY: unknown automation type (%s) for asset %-6s\n",
-                                     $asset{$stage}, $asset{$yp2id_name})
+                            if ($value eq $none_name) {
+                                push(@not_deployed_stages, $stage);
+                            } else {
+                                $will_be_deployed++;
+                                if (exists $asset{$cdpipelineauto_name} && $asset{$cdpipelineauto_name} ne "") {
+                                    if ($value eq $no_automation_name) {
+                                        push(@asset_errors, sprintf("WARNING: pipeline automated but automation type"
+                                            . " '$no_automation_name' for %s", $stage)) if $VERBOSE;
+                                    } else {
+                                        $value = $cdpipelineauto_name;
+                                    }
+                                }
+                                $deployment_count{$stage}{$value}++;
                             }
                         }
+                    }
+                    if ($will_be_deployed == 0) {
+                        push(@asset_errors, "INCONSISTENCY: not pipeline excluded and not deployed on any stage");
+                    } elsif ($will_be_deployed < 3) {
+                        my $not_deployed_stages = "@not_deployed_stages";
+                        push(@asset_errors, sprintf("WARNING: not deployed on %s",
+                            $not_deployed_stages)) if $VERBOSE;
                     }
                 }
                 if (exists $asset{$cdpipelineauto_name} && $asset{$cdpipelineauto_name} ne "") {
@@ -309,15 +329,20 @@ sub parse_excelfile {
                 if (exists $cloud_maturity_grades{$asset{$cloudmatgrade_name}}) {
                     $cloudmaturity_count{$asset{$cloudmatgrade_name}}++;
                     if ($asset{$cloudmatgrade_name} eq $none_name) {
-                        printf("WARNING: cloud maturity grade not set for asset %-6s\n",
-                            $asset{$yp2id_name}) if $VERBOSE;
+                        push(@asset_errors, "WARNING: cloud maturity grade not set") if $VERBOSE;
                     }
                 } else {
-                    printf("INCONSISTENCY: unknown cloud maturity grade (%s) for asset %-6s\n",
-                        $asset{$cloudmatgrade_name}, $asset{$yp2id_name})
+                    push(@asset_errors, sprintf("INCONSISTENCY: unknown cloud maturity grade (%s)",
+                        $asset{$cloudmatgrade_name}));
                 }
 
                 $file_hash{ $asset{$yp2id_name} } = \%asset;
+                if (@asset_errors > 0) {
+                    print "  " . sprint_asset(\%asset) . "\n";
+                    foreach (@asset_errors) {
+                        print "    $_\n";
+                    }
+                }
             }
         }
 
@@ -343,7 +368,7 @@ sub parse_excelfile {
                 my $sum = 0;
                 foreach (@deployment_types) {
                     if ($_ ne $none_name) {
-                        my $value = $automation_count{$stage}{$_};
+                        my $value = $deployment_count{$stage}{$_};
                         $sum += $value;
                         printf("    %-30s %3i\n", $_, $value);
                     }
@@ -351,7 +376,7 @@ sub parse_excelfile {
                 printf("    %30s %3i\n\n", "Sum", $sum);
             }
 
-            printf("  %-32s %3i\n\n", "CD Pipeline automated", $cd_pipeline_count) if $VERBOSE;
+            printf("  %-32s %3i\n\n", "CD Pipeline automated summary", $cd_pipeline_count) if $VERBOSE;
 
             print "  ${cloudmatgrade_name}s\n";
             my $cmgsum = 0;
