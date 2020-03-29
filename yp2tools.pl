@@ -8,7 +8,7 @@ use Data::Dumper;
 use Encode qw(decode encode);
 use Spreadsheet::ParseExcel;
 
-my $VERSION = 0.12;
+my $VERSION = 0.13;
 
 # options
 my $HELP;
@@ -337,7 +337,7 @@ sub parse_excelfile {
                 }
 
                 $file_hash{ $asset{$yp2id_name} } = \%asset;
-                if (@asset_errors > 0) {
+                if (($printresults && @asset_errors > 0) || ($VERBOSE)) {
                     print "  " . sprint_asset(\%asset) . "\n";
                     foreach (@asset_errors) {
                         print "    $_\n";
@@ -376,7 +376,7 @@ sub parse_excelfile {
                 printf("    %30s %3i\n\n", "Sum", $sum);
             }
 
-            printf("  %-32s %3i\n\n", "CD Pipeline automated summary", $cd_pipeline_count) if $VERBOSE;
+            printf("  %-32s %3i\n\n", "CD Pipeline automated summary", $cd_pipeline_count);
 
             print "  ${cloudmatgrade_name}s\n";
             my $cmgsum = 0;
