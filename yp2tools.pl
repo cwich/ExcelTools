@@ -8,7 +8,7 @@ use Data::Dumper;
 use Encode qw(decode encode);
 use Spreadsheet::ParseExcel;
 
-my $VERSION = 0.14;
+my $VERSION = 0.15;
 
 # options
 my $HELP;
@@ -45,7 +45,8 @@ my $cdexclcrit_name = 'CD Exclusion Criterion';
 my $devstage_name = 'DEV-Stage';
 my $intstage_name = 'AC1-Stage';
 my $prod_stage_name = 'PROD-Stage';
-my $no_automation_name = "No automation";
+my $no_automation_name = 'No automation';
+my $target_automation_name = 'Target automation (ansible)';
 my $cdpipelineauto_name = 'CD Pipeline Automated';
 my $cloudmatgrade_name = 'Cloud Maturity Grade';
 
@@ -85,7 +86,7 @@ my @deployment_types = (
     $none_name,
     $no_automation_name,
     'Legacy automation',
-    'Target automation (ansible)',
+    $target_automation_name,
     $cdpipelineauto_name
 );
 my %deployment_types = map { $_ => 0 } @deployment_types;
@@ -297,7 +298,8 @@ sub parse_excelfile {
                         if (exists $asset{$stage}) {
                             my $value = $asset{$stage};
                             if (!exists $deployment_types{$value}) {
-                                 push(@asset_errors, sprintf("INCONSISTENCY: unknown automation type (%s)", $value));
+                                 push(@asset_errors, sprintf("INCONSISTENCY: unknown automation type (%s) for %s",
+                                    $value, $stage));
                             }
                             if ($value eq $none_name) {
                                 push(@not_deployed_stages, $stage);
@@ -321,6 +323,21 @@ sub parse_excelfile {
                         my $not_deployed_stages = "@not_deployed_stages";
                         push(@asset_errors, sprintf("WARNING: not deployed on %s",
                             $not_deployed_stages)) if $VERBOSE;
+                    }
+                } else {
+                    foreach my $stage (@stages) {
+                        if (exists $asset{$stage}) {
+                            my $value = $asset{$stage};
+                            if (!exists $deployment_types{$value}) {
+                                push(@asset_errors, sprintf("INCONSISTENCY: unknown automation type (%s) for %s",
+                                    $value, $stage));
+                            }
+                            if ($value eq $target_automation_name) {
+                                push(@asset_errors,
+                                    sprintf("WARNING: automation type (%s) set for %s but pipeline excluded",
+                                        $value, $stage)) if $VERBOSE;
+                            }
+                        }
                     }
                 }
                 if (exists $asset{$cdpipelineauto_name} && $asset{$cdpipelineauto_name} ne "") {
